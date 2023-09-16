@@ -1,0 +1,280 @@
+---
+title: "Workflowsets"
+author: "ernestsalim"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(rpart)
+library(ranger)
+library(baguette)
+library(bonsai)
+library(lightgbm)
+library(xgboost)
+library(keras)
+library(tensorflow)
+library(nnet)
+library(reticulate)
+library(mda)
+library(discrim)
+library(stacks)
+
+tidymodels_prefer()
+```
+
+```{r}
+train <- read_csv("clean_train.csv")
+test <- read_csv("test2.csv")
+```
+
+```{r}
+factor_conversion <- function(feat) {
+  if (n_distinct(feat) <= 20) {
+    feat <- as.factor(feat)
+  }
+  return(feat)
+}
+
+train <- train %>%
+  mutate(across(everything(), factor_conversion))
+
+test <- test %>%
+  mutate(across(everything(), factor_conversion))
+```
+
+## Workflowsets
+
+```{r}
+# V-Folds CV
+set.seed(2023)
+
+folds <- vfold_cv(data = train, v = 10, strata = action_taken)
+```
+
+```{r}
+# Preprocessing
+rec <- recipe(action_taken ~ ., data = train) %>% 
+  step_mutate(state = factor(state)) %>% 
+  step_mutate(state = if_else(state == "PR", NA, state)) %>% 
+  step_mutate(age_of_applicant_or_borrower = if_else(age_of_applicant_or_borrower %in% c(8888, 9999), NA, age_of_applicant_or_borrower)) %>% 
+  step_impute_mean(all_numeric_predictors()) %>% 
+  step_impute_mode(all_nominal_predictors()) %>%
+  step_cut(loan_term, breaks = c(150, 210, 270, 330, 390), include_outside_range = TRUE) %>% 
+  step_YeoJohnson(loan_amount, income, property_value) %>%
+  step_normalize(all_numeric_predictors()) %>%
+  step_dummy(all_nominal_predictors()) %>% 
+  step_zv(all_predictors()) 
+```
+
+```{r}
+# Models Spec - Tuning
+tree_spec <- decision_tree(
+    tree_depth = tune(),
+    cost_complexity = tune(),
+    min_n = tune()
+  ) %>%
+  set_engine("rpart") %>%
+  set_mode("classification")
+
+# Model 2 - Random Forest
+# randforest_spec <- rand_forest(
+#     trees = 1668,
+#     min_n = 6
+#   ) %>%
+#   set_engine("ranger") %>%
+#   set_mode("classification")
+
+# Model 3 - Bagged Trees
+bagtree_spec <- bag_tree(
+    tree_depth = tune(),
+    min_n = tune(),
+    cost_complexity = tune()
+  ) %>%
+  set_engine("rpart") %>%
+  set_mode("classification")
+
+# Model 4 - Boosted Trees
+boosttree_spec <- boost_tree(
+    trees = tune(),
+    tree_depth = tune(), 
+    min_n = tune(),
+    learn_rate = tune()
+  ) %>%
+  set_engine("lightgbm") %>%
+  set_mode("classification")
+
+# Model 5 - Logistic Regression (Elastic Net Regularization)
+logistic_spec <- logistic_reg(
+    penalty = tune(), 
+    mixture = tune()
+  ) %>%
+  set_engine("glmnet") %>% 
+  set_mode("classification")
+
+# Model 6 - MLP
+# mlp_spec <- mlp(
+#     epochs = 45,
+#     hidden_units = 8,
+#     penalty = 0.0000000366,
+#     activation = "softmax"
+#   ) %>% 
+#   set_engine("keras") %>%
+#   set_mode("classification")
+
+# Model 7 - Bagged MLP
+# bagmlp_spec <- bag_mlp(
+#     hidden_units = 7,
+#     penalty = 1.18e-10,
+#     epochs = 30
+#   ) %>%
+#   set_engine("nnet") %>%
+#   set_mode("classification")
+
+# Model 8 - LDA
+lda_spec <- discrim_linear(
+    penalty = tune()
+  ) %>%
+  set_engine("mda") %>%
+  set_mode("classification")
+```
+
+```{r}
+# Models Spec - Tuned
+
+tree_spec <- decision_tree(
+    tree_depth = 13,
+    cost_complexity = 7.058241e-05,
+    min_n = 26
+  ) %>%
+  set_engine("rpart") %>%
+  set_mode("classification")
+
+bagtree_spec <- bag_tree(
+    tree_depth = 9,
+    min_n = 4,
+    cost_complexity = 6.711050e-09
+  ) %>%
+  set_engine("rpart") %>%
+  set_mode("classification")
+
+boosttree_spec <- boost_tree(
+    trees = 1257,
+    tree_depth = 8, 
+    min_n = 11,
+    learn_rate = 6.525540e-02
+  ) %>%
+  set_engine("lightgbm") %>%
+  set_mode("classification")
+
+logistic_spec <- logistic_reg(
+    penalty = 2.989194e-08 , 
+    mixture = 0.2268432
+  ) %>%
+  set_engine("glmnet") %>% 
+  set_mode("classification")
+
+lda_spec <- discrim_linear() %>%
+    set_engine("mda") %>%
+    set_mode("classification")
+```
+
+```{r}
+wfl <- workflow_set(
+    preproc = list(mod = rec),
+    models = list(tree = tree_spec,
+                  # randforest = randforest_spec,
+                  bagtree = bagtree_spec,
+                  boosttree = boosttree_spec,
+                  logistic = logistic_spec,
+                  # mlp = mlp_spec,
+                  # bagmlp = bagmlp_spec,
+                  lda = lda_spec),
+    cross = TRUE
+  ) %>% option_add(control = control_grid(save_workflow = TRUE, 
+                                          save_pred = TRUE, verbose = TRUE))
+
+wfl
+```
+
+```{r}
+set.seed(2023)
+wfl_tuned <- wfl %>% workflow_map("fit_resamples", resamples = folds, verbose = TRUE)
+```
+
+```{r}
+wfl_tuned %>% collect_metrics() %>% arrange(desc(mean)) %>% filter(.metric == "accuracy")
+```
+
+```{r}
+wfl_tuned %>% workflowsets::autoplot()
+```
+
+```{r}
+rank_results(wfl_tuned, rank_metric = "accuracy", select_best = TRUE)
+```
+
+```{r}
+wfl_tuned %>% extract_workflow_set_result(id = "mod_lda") %>%
+  collect_metrics(summarize = TRUE) %>% 
+  filter(.metric == "accuracy")
+```
+
+```{r}
+trained_wfl <- wfl_tuned %>% fit_best()
+```
+
+```{r}
+trained_wfl_result <- wfl_tuned %>% 
+  extract_workflow_set_result("mod_logistic")
+```
+
+```{r}
+ trained_wfl_result$.metrics 
+```
+
+## Creating Model Stack
+
+```{r}
+set.seed(2023)
+
+model_stack <- stacks() %>% 
+  add_candidates(wfl_tuned) %>% 
+  blend_predictions() 
+```
+
+```{r}
+model_stack %>% autoplot(type = "performance")
+```
+
+```{r}
+model_stack %>% autoplot(type = "weights")
+```
+
+```{r}
+final_stack <- model_stack %>% fit_members()
+```
+
+```{r}
+pred <- final_stack %>% 
+  predict(test)
+
+pred <- test %>% 
+  select(id) %>% 
+  bind_cols(pred)
+
+write_csv(pred, "pred-stack5.csv")
+```
+
+
+
+
+
+
+

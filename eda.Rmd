@@ -1,0 +1,332 @@
+---
+title: "EDA"
+author: "ernestsalim"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Initial Preprocessing
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(moments)
+library(gridExtra)
+library(ggcorrplot)
+library(VGAM)
+```
+
+```{r}
+train <- read_csv("train2.csv")
+test <- read_csv("test2.csv")
+```
+
+```{r}
+train %>% dim()
+```
+
+```{r}
+train %>% head()
+```
+
+```{r}
+init_rec <- recipe(action_taken ~ ., data = train) %>%
+  step_rm(id, age_of_co_applicant_or_co_borrower) %>% 
+  step_filter_missing(all_predictors(), threshold = 0.1) %>% 
+  step_nzv(all_predictors())
+
+train <- init_rec %>%  prep() %>% juice()
+test <- init_rec %>% prep() %>% bake(new_data = test)
+```
+
+```{r}
+train %>% dim()
+test %>% dim()
+```
+
+```{r}
+train %>% summarise_all(n_distinct) %>% unlist()
+test %>% summarise_all(n_distinct) %>% unlist()
+```
+
+```{r}
+for (i in seq_along(train_unique[-length(train_unique)])) {
+  if (train_unique[i] != test_unique[i]) {
+    print(
+      paste(c(names(train_unique[i]), train_unique[i]), collapse = ": ")
+    )
+  }
+}
+```
+
+```{r}
+factor_conversion <- function(feat) {
+  if (n_distinct(feat) <= 20) {
+    feat <- as.factor(feat)
+  }
+  return(feat)
+}
+
+train <- train %>%
+  mutate(across(everything(), factor_conversion))
+
+test <- test %>%
+  mutate(across(everything(), factor_conversion))
+```
+
+```{r}
+numeric <- train %>% select_if(is.numeric)
+nominal <- train %>% select_if(is.factor) 
+
+length(numeric)
+length(nominal)
+```
+
+```{r}
+for (col in names(colSums(is.na(train)))) {
+  if (colSums(is.na(train))[col] > 0) {
+    print(paste(c(col, colSums(is.na(train))[col]), collapse = ": "))
+  }
+}
+```
+
+## Numerical Analysis
+
+#### Univariate Analysis
+
+- Skewness assessment
+- Removing outliers
+- Plotting distribution
+
+```{r}
+numeric %>% apply(2, skewness, na.rm = TRUE)
+```
+
+```{r}
+numeric %>% head()
+```
+
+```{r}
+uni_numeric <- numeric %>%
+  select(-loan_term)
+```
+
+```{r}
+library(gridExtra)
+
+numeric_titles <- list(
+  loan_amount = "Loan Amount",
+  income = "Income",
+  combined_loan_to_value_ratio = "Combined Loan-to-Value Ratio",
+  property_value = "Property Value"
+)
+
+plot_dist <- function(df, log = FALSE, yj = FALSE, lambda = 1) {
+  plots <- list()
+  
+  for (col in names(df)) {
+    if (log) {
+      p <- ggplot(df, aes(x = log(!!sym(col)))) +
+      geom_histogram(fill = "blue") +
+      labs(title = numeric_titles[[col]])
+    } 
+    else if (yj) {
+      p <- ggplot(df, aes(x = yeo.johnson(!!sym(col), lambda = lambda))) +
+      geom_histogram(fill = "blue") +
+      labs(title = numeric_titles[[col]])
+    }
+    else {
+      p <- ggplot(df, aes(x = !!sym(col))) +
+      geom_histogram(fill = "blue") +
+      labs(title = numeric_titles[[col]])
+    }
+    
+    plots[[col]] <- p
+  }
+  grid.arrange(grobs = plots, ncol = 2)
+}
+
+plot_dist(uni_numeric)
+```
+
+```{r}
+uni_numeric %>% summary()
+```
+
+```{r}
+remove_outliers <- function(df) {
+  filter <- rep(TRUE, nrow(df))
+  
+  for (column_name in names(df)) {
+    if (is.numeric(df[[column_name]])) {
+      P_1 <- quantile(df[[column_name]], 0.005, na.rm = TRUE)
+      P_2 <- quantile(df[[column_name]], 0.995, na.rm = TRUE)
+      
+      filter <- filter & (df[[column_name]] >= P_1 & df[[column_name]] <= P_2 | is.na(df[[column_name]]))
+    }
+  }
+  
+  df <- df[filter, ]
+  return(df)
+}
+
+clean_numeric <- remove_outliers(uni_numeric)
+clean_numeric %>% dim()
+```
+
+```{r}
+colSums(is.na(clean_numeric))
+```
+
+
+```{r}
+plot_dist(clean_numeric)
+```
+
+```{r}
+clean_numeric %>% summary()
+```
+
+```{r}
+plot_dist(clean_numeric, log = TRUE)
+```
+
+```{r}
+plot_dist(clean_numeric %>%
+  filter(!is.na(income), !is.na(loan_amount), !is.na(combined_loan_to_value_ratio), !is.na(property_value)),
+  log = FALSE, yj = TRUE, lambda = 0.1)
+```
+
+
+#### Bivariate Analysis
+
+```{r}
+nona_numeric <- recipe(loan_amount ~ ., data = numeric %>% select(-loan_term)) %>% 
+  step_naomit(all_predictors()) %>% prep() %>% juice()
+
+corr <- cor(nona_numeric)
+ggcorrplot(corr, 
+           lab = TRUE) +
+  scale_fill_gradient2(low = "lightblue", mid = "white", high = "blue", midpoint = 0.5)
+```
+
+#### Discretizing
+
+```{r}
+ggplot(numeric, aes(x = loan_term)) +
+    geom_histogram(fill = "blue") +
+    labs(title = "Loan Term") +
+    scale_y_continuous(limits = c(0, 40000))
+```
+
+```{r}
+discretized_num <- recipe(action_taken ~ ., data = train) %>% 
+  step_impute_mean(all_numeric_predictors()) %>% 
+  step_cut(loan_term, breaks = c(150, 210, 270, 330, 390), include_outside_range = TRUE) %>% 
+  prep() %>% 
+  juice()
+
+discretized_num %>% select(loan_term) %>% table()
+```
+
+```{r}
+# Create the bar chart
+ggplot(discretized_num, aes(x = loan_term, group = action_taken, color = action_taken, fill = action_taken)) +
+  geom_bar() + labs(x = "Loan Term")
+```
+
+---
+
+## Categorical Analysis
+
+```{r}
+train <- train %>%
+  mutate(sex_of_applicant_or_borrower  = recode(sex_of_applicant_or_borrower , 
+                                      `1` = "Male", 
+                                      `2` = "Female", 
+                                      `3` = "Not provided",
+                                      `4` = "Not Applicable",
+                                      `6` = "Both"
+                                      ))
+
+ggplot(train, aes(x =factor(sex_of_applicant_or_borrower, levels = c("Male", 
+                                      "Female", 
+                                      "Not provided",
+                                      "Not Applicable",
+                                      "Both")), group = action_taken, fill = action_taken)) +
+  geom_bar() + labs(x = "Sex of Applicant or Borrower") +
+  scale_fill_manual(values = c("navy", "dodgerblue2"))
+```
+
+```{r}
+train <- train %>%
+  mutate(loan_purpose = recode(loan_purpose, 
+                                      `1` = "Home Purchase", 
+                                      `2` = "Home Improvement", 
+                                      `31` = "Refinancing",
+                                      `32` = "Cash-out refinancing",
+                                      `4` = "Other Purpose",
+                                      `5` = "Not Applicable"))
+
+ggplot(train, aes(x =factor(loan_purpose, levels = c("Home Purchase", 
+                                      "Home Improvement", 
+                                      "Refinancing",
+                                      "Cash-out refinancing",
+                                      "Other Purpose",
+                                      "Not Applicable")), group = action_taken, color = action_taken, fill = action_taken)) +
+  geom_bar() + labs(x = "Loan Purpose") +
+  scale_fill_manual(values = c("deeppink4", "hotpink2")) + 
+  scale_color_manual(values = c("deeppink4", "hotpink2"))
+```
+
+```{r}
+train <- train %>% mutate(hoepa_status = recode(hoepa_status, 
+                                      `1` = "High-cost mortgage", 
+                                      `2` = "Not a high-cost mortgage", 
+                                      `3` = "Not applicable"))
+
+ggplot(train, aes(hoepa_status, group = action_taken, color = action_taken, fill = action_taken)) +
+  geom_bar() +
+  scale_fill_manual(values = c("springgreen4", "chartreuse")) +
+  scale_color_manual(values = c("springgreen4", "chartreuse"))
+```
+
+```{r}
+train <- train %>% mutate(occupancy_type = recode(occupancy_type, 
+                                      `1` = "Principal residence", 
+                                      `2` = "Second residence", 
+                                      `3` = "Investment property"))
+train <- train %>% mutate(action_taken = recode(action_taken, 
+                                      `1` = "Approved", 
+                                      `3` = "Declined"
+                                      ))
+
+ggplot(train, aes(occupancy_type, group = action_taken, color = action_taken, fill = action_taken)) +
+  geom_bar() +
+  scale_fill_manual(values = c("blueviolet", "purple4")) + 
+  scale_color_manual(values = c("blueviolet", "purple4"))
+```
+
+```{r}
+ggplot(clean_train, aes(x = property_value, y = loan_amount, color = action_taken)) +
+  geom_point(size = 0.2) +
+  labs(title = "Loan Amount and Property Value Divided by Action Taken", x = "Property Value", y = "Loan Amount") +
+  theme(plot.title = element_text(size = 10)) +
+  scale_color_manual(values = c("darkred", "firebrick1"))
+```
+
+--
+
+## Final Preprocessing Recipe
+
+```{r}
+clean_train <- remove_outliers(train)
+```
+
+```{r}
+write_csv(clean_train, "clean_train.csv")
+```

@@ -1,0 +1,239 @@
+---
+title: "Model Testing - Logistic"
+author: "ernestsalim"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(rpart)
+library(baguette)
+library(keras)
+library(tensorflow)
+library(reticulate)
+library(bonsai)
+library(lightgbm)
+
+tidymodels_prefer()
+```
+
+```{r}
+train <- read_csv("clean_train.csv")
+test <- read_csv("test2.csv")
+```
+
+```{r}
+factor_conversion <- function(feat) {
+  if (n_distinct(feat) <= 20) {
+    feat <- as.factor(feat)
+  }
+  return(feat)
+}
+
+train <- train %>%
+  mutate(across(everything(), factor_conversion))
+
+test <- test %>%
+  mutate(across(everything(), factor_conversion))
+```
+
+```{r}
+train_split <- initial_split(train, prop = 0.5, strata = action_taken)
+train_eval <- train_split %>% training()
+
+folds <- vfold_cv(data = train_eval, v = 5, strata = action_taken)
+```
+
+```{r}
+rec <- recipe(action_taken ~ ., data = train_eval) %>% 
+  # Direct features manipulation
+  step_mutate(state = factor(state)) %>% 
+  step_mutate(state = if_else(state == "PR", NA, state)) %>% 
+  step_mutate(age_of_applicant_or_borrower = if_else(age_of_applicant_or_borrower %in% c(8888, 9999), NA, age_of_applicant_or_borrower)) %>% 
+  
+  # Missing data imputation
+  step_impute_mean(all_numeric_predictors()) %>% 
+  step_impute_mode(all_nominal_predictors()) %>%
+  
+  # Discretizing
+  step_cut(loan_term, breaks = c(150, 210, 270, 330, 390), include_outside_range = TRUE) %>% 
+  
+  # Numerical features transformation
+  step_YeoJohnson(loan_amount, income, property_value) %>%
+  step_normalize(all_numeric_predictors()) %>%
+  
+  # Categorical features transformation
+  step_dummy(all_nominal_predictors()) %>% 
+  
+  # Removing unnecessary features
+  step_zv(all_predictors()) 
+```
+
+```{r}
+# spec <- logistic_reg(
+#   penalty = tune(),
+#   mixture = tune()
+#   ) %>%
+#   set_engine("glmnet") %>%
+#   set_mode("classification")
+
+spec <- bag_tree(
+    tree_depth = 9,
+    min_n = 4,
+    cost_complexity = 6.711050e-09
+  ) %>%
+  set_engine("rpart") %>%
+  set_mode("classification")
+
+# spec <- boost_tree(
+#     trees = 1257,
+#     tree_depth = 8, 
+#     min_n = 11,
+#     learn_rate = 6.525540e-02
+#   ) %>%
+#   set_engine("lightgbm") %>%
+#   set_mode("classification")
+
+# spec <- decision_tree(
+#     tree_depth = 11,
+#     cost_complexity = 2.465233e-07,
+#     min_n = 36
+#   ) %>%
+#   set_engine("rpart") %>%
+#   set_mode("classification")
+
+# spec <- parsnip::rand_forest(
+#     trees = 888,
+#     min_n = 39
+#   ) %>%
+#   set_engine("ranger") %>%
+#   set_mode("classification")
+
+# spec <- discrim_linear() %>%
+#   set_engine("mda") %>%
+#   set_mode("classification")
+
+# spec <- mlp(
+#     epochs = 45,
+#     hidden_units = 8,
+#     penalty = 0.0000000366,
+#     activation = "softmax"
+#   ) %>% 
+#   set_engine("keras") %>%
+#   set_mode("classification")
+
+wfl <- workflow() %>% 
+  add_recipe(rec) %>% 
+  add_model(spec)
+```
+
+## Tuning Workflow
+
+```{r}
+grid <- grid_random(parameters(spec), size = 10)
+
+tuned_wfl <- wfl %>%
+  tune_grid(resamples = folds,
+            grid = grid,
+            control = control_grid(verbose = TRUE))
+show_notes(.Last.tune.result)
+```
+
+```{r}
+tuned_wfl %>% collect_metrics() %>% arrange(desc(mean))
+```
+
+```{r}
+best_params <- tuned_wfl %>%
+  select_best() 
+
+best_wfl <- wfl %>% 
+  finalize_workflow(best_params)
+
+best_wfl
+```
+
+```{r}
+fitted_wfl <- best_wfl %>% fit(train)
+```
+
+```{r}
+pred <- fitted_wfl %>% predict(test)
+pred <- test %>% select(id) %>% bind_cols(pred)
+write_csv(pred, "pred.csv")
+```
+
+---
+
+## Evaluation Workflow
+
+```{r}
+eval_wfl <- wfl %>%
+  fit_resamples(resamples = folds, control = control_grid(verbose = TRUE))
+show_notes(.Last.tune.result)
+```
+
+```{r}
+eval_wfl %>% collect_metrics()
+```
+
+```{r}
+fitted_wfl <- wfl %>% fit(train)
+```
+
+```{r}
+pred <- fitted_wfl %>% predict(test)
+```
+
+```{r}
+pred <- test %>% select(id) %>% bind_cols(pred)
+```
+
+```{r}
+write_"pred.csv")
+```
+
+---
+
+## Hardcode Flow
+
+```{r}
+test2 <- test[-72372, ] # Entry 290519
+```
+
+```{r}
+test2 %>% dim()
+```
+
+```{r}
+pred <- fitted_wfl %>% predict(new_data = test2)
+```
+
+```{r}
+pred <- test2 %>% 
+  select(id) %>% 
+  bind_cols(pred)
+```
+
+```{r}
+hardcoded_pred <- tibble(
+  id = 290519,
+  .pred_class = "3"
+)
+pred <- pred %>% bind_rows(hardcoded_pred)
+```
+
+```{r}
+write_csv(pred, "pred.csv")
+```
+
+
+
+---
+

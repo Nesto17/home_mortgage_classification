@@ -1,0 +1,267 @@
+---
+title: "Stats 101C - Neural Network with tidymodels"
+author: "Miles Chen, PhD"
+date: "Week 5 Wednesday"
+header-includes:
+   - \usepackage{graphicx}
+   - \usepackage{bm}
+output:
+  beamer_presentation:
+    theme: "Boadilla"
+    colortheme: "beaver"
+    includes:
+      in_header: ..\header_template.tex
+    slide_level: 2
+    
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(width = 80)
+library(knitr)
+```
+
+
+## Load tidyverse / tidymodels
+
+\tiny
+```{r}
+library(tidyverse)
+library(tidymodels)
+```
+
+# More models - Neural Network with Keras
+
+## Video introduction to neural networks
+
+3 Blue 1 Brown
+
+https://youtu.be/aircAruvnKk?si=xNbroFfZIbg7iRtW
+
+## Keras / TensorFlow
+
+The MLP is a type of neural network.
+
+It can be trained using Keras, which runs on TensorFlow. TensorFlow requires Python.
+
+Despite running on Python, you can still interact with Keras and TensorFlow via R and RStudio.
+
+It does require you to install Python and TensorFlow and Keras on your computer. Details are found on this page:
+
+https://tensorflow.rstudio.com/install/
+
+## Recommended installation of Keras / Tensorflow
+
+\footnotesize
+To install Python / Keras / Tensorflow, you can run the following lines. (These lines are not run in this session.)
+
+```{r, eval = FALSE}
+# not run
+install.packages("tensorflow")
+library(reticulate)
+path_to_python <- install_python()
+virtualenv_create("r-reticulate", python = path_to_python)
+install.packages("keras")
+library(keras)
+install_keras(envname = "r-reticulate")
+```
+
+Confirm installation with:
+
+```{r, eval = FALSE}
+library(tensorflow)
+tf$constant("Hello Tensorflow!")
+```
+
+## Load necessary libraries for Keras / Tensorflow
+
+Once installed, we load the libraries
+
+```{r}
+library(reticulate)
+library(keras)
+library(tensorflow)
+```
+
+## MLP model
+\footnotesize
+MLP is Multilayer perceptron. It is a type of neural network. `mlp()` in tidymodels fits a single layer, feed-forward neural network. This type of neural network has only one hidden layer. If you want deeper neural networks, you can use keras directly, but the implementation is not as simple/straighforward.
+
+With tidymodels, creating and training a MLP neural network model is fairly easy.
+
+I begin by specifying the model, mode and engine. I use some arbitrary starting values for the penalty and the number of epochs.
+
+The penalty is a regularization term. Anything larger than 0 will shrink the coefficients. The default value is 0, but you may choose a larger value, which has the effect of increasing bias and reducing variation.
+
+The number of epochs determines how long to let the training run. A higher number requires more time to run. The default value is 20 epochs, but depending on your data, you may need to choose 200 epochs or possibly more.
+
+The number of hidden units is how many nodes to have in the hidden layer. I arbitrarily chose a number. More units usually means less bias but more variance.
+
+##
+
+```{r}
+library(palmerpenguins)
+data(penguins)
+```
+
+
+## 
+
+```{r}
+mlp_model <- 
+  mlp(penalty = 0, 
+      epochs = 100, 
+      hidden_units = 20, 
+      activation = "relu") %>% 
+    set_mode("classification") %>% 
+    set_engine("keras")
+```
+
+##
+
+```{r}
+mlp_recipe <-
+  recipe(species ~ bill_length_mm + bill_depth_mm + flipper_length_mm,
+         data = penguins) %>% 
+  step_naomit(bill_length_mm, bill_depth_mm, flipper_length_mm)
+```
+
+## 
+
+```{r}
+mlp_wf <-
+  workflow() %>% 
+  add_model(mlp_model) %>% 
+  add_recipe(mlp_recipe)
+```
+
+
+
+## Fit the model
+\footnotesize
+
+We take the workflow and fit it to the training data. With 200 epochs, this takes a few minutes to run.
+
+```{r}
+set.seed(100)
+mlp_fitted <- 
+  mlp_wf %>% 
+  fit(data = penguins)
+```
+
+## Resulting object
+\footnotesize
+
+```{r}
+mlp_fitted 
+```
+
+## Making predictions with the trained neural network
+\footnotesize
+```{r}
+mlp_pred <- 
+  mlp_fitted %>% 
+  predict(new_data = penguins)
+
+mlp_pred <- 
+  penguins %>% select(species) %>% 
+  bind_cols(mlp_pred)
+```
+
+## Predictions
+\tiny
+```{r}
+summary(mlp_pred)
+print(mlp_pred, n = 20)
+```
+
+# Tune a model
+
+
+
+## 
+
+```{r}
+mlp_model <- 
+  mlp(penalty = tune(), 
+      epochs = tune(), 
+      hidden_units = tune(), 
+      activation = "relu") %>% 
+    set_mode("classification") %>% 
+    set_engine("keras")
+```
+
+
+
+##
+
+```{r}
+mlp_dials <- 
+  extract_parameter_set_dials(mlp_model)
+```
+
+
+##
+
+```{r}
+mlp_dials %>% 
+  extract_parameter_dials("hidden_units")
+
+mlp_dials %>% 
+  extract_parameter_dials("epochs")
+
+mlp_dials %>% 
+  extract_parameter_dials("penalty")
+```
+##
+
+```{r}
+mlp_dials <- 
+  mlp_dials %>% 
+  update("hidden_units" = hidden_units(range = c(10L, 40L)))
+```
+
+##
+
+```{r}
+mlp_recipe <-
+  recipe(species ~ bill_length_mm + bill_depth_mm + flipper_length_mm,
+         data = penguins) %>% 
+  step_naomit(bill_length_mm, bill_depth_mm, flipper_length_mm)
+```
+
+## 
+
+```{r}
+mlp_wf <-
+  workflow() %>% 
+  add_model(mlp_model) %>% 
+  add_recipe(mlp_recipe)
+```
+
+##
+
+```{r}
+penguins_folds <- 
+  vfold_cv(penguins)
+```
+
+
+##
+
+```{r, eval = FALSE} 
+## Warning: Takes a very long time to run.
+## Currently set to eval = FALSE
+set.seed(5)
+mlp_grid <- 
+  mlp_wf %>% 
+  tune_grid(
+    penguins_folds,
+    grid = mlp_dials %>% grid_random (size = 20),
+    )
+  
+```
+
+
+

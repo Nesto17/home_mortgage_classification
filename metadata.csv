@@ -1,0 +1,203 @@
+col_names,
+id,
+action_taken,"Descriptions:
+1. Loan originated
+3. Application denied"
+activity_year,
+legal_entity_identifier,
+loan_type,"1. Conventional (not insured or guaranteed by FHA VA RHS or FSA)
+2. Federal Housing Administration insured (FHA)
+3. Veterans Affairs guaranteed (VA)
+4. USDA Rural Housing Service or the Farm Service Agency guaranteed (RHS or FSA)"
+loan_purpose,"Descriptions:
+1. Home purchase
+2. Home improvement
+31. Refinancing
+32. Cash-out refinancing
+4. Other purpose
+5. Not applicable"
+preapproval,"Descriptions:
+1. Preapproval requested
+2. Preapproval not requested"
+construction_method,"Descriptions:
+1. Site-built
+2. Manufactured Home"
+occupancy_type,"Descriptions:
+1. Principal residence
+2. Second residence
+3. Investment property"
+loan_amount,Disclose the midpoint for the $10000 interval into which the reported value falls (e.g. for a reported value of $117834 disclose $115000 as the midpoint between values = $110000 and < $120000)
+state,
+ethnicity_applicant_1,"Descriptions:
+1.Hispanic or Latino
+11. Mexican
+12. Puerto Rican
+13. Cuban
+14. Other Hispanic or Latino
+2. Not Hispanic or Latino
+3. Information not provided by applicant in mail internet or telephone application
+4. Not applicable. If the Applicant or Borrower did not select any ethnicity(ies) and only provided ethnicity(ies) in the Ethnicity of Applicant or Borrower: Free Form Text Field for Other Hispanic or Latino, this data field may be left blank."
+ethnicity_applicant_2,
+ethnicity_applicant_3,
+ethnicity_applicant_4,
+ethnicity_applicant_5,
+ethnicity_co_applicant_1,
+ethnicity_co_applicant_2,
+ethnicity_co_applicant_3,
+ethnicity_co_applicant_4,
+ethnicity_co_applicant_5,
+ethnicity_applicant_collected,"Descriptions:
+1. Collected on the basis of visual observation or surname
+2. Not collected on the basis of visual observation or surname
+3. Not applicable"
+ethnicity_co_applicant_collected,"Descriptions:
+1.Collected on the basis of visual observation or surname
+2. Not collected on the basis of visual observation or surname
+3. Not applicable
+4. No co-applicant"
+race_applicant_1,"Descriptions:
+1. American Indian or Alaska Native
+2. Asian
+21. Asian Indian
+22. Chinese
+23. Filipino
+24. Japanese
+25. Korean
+26. Vietnamese
+27. Other Asian
+3. Black or African American
+4. Native Hawaiian or Other Pacific Islander
+41. Native Hawaiian
+42. Guamanian or Chamorro
+43. Samoan
+44. Other Pacific Islander
+5. White
+6. Information not provided by applicant in mail internet or telephone application
+7. Not applicable. If the Applicant or Borrower did not select any race(s) and only provided race(s) in the Race of Applicant or Borrower: Free Form Text Field for American Indian or Alaska Native Enrolled or Principal Tribe, Race of Applicant or Borrower: Free Form Text Field for Other Asian, and/or Race of Applicant or Borrower: Free Form Text Field for Other Pacific Islander, either leave this data field blank or enter, as appropriate, Code 1, 27, or 44."
+race_applicant_2,
+race_applicant_3,
+race_applicant_4,
+race_applicant_5,
+race_co_applicant_1,
+race_co_applicant_2,
+race_co_applicant_3,
+race_co_applicant_4,
+race_co_applicant_5,
+race_applicant_collected,"Descriptions:
+1. Collected on the basis of visual observation or surname
+2. Not collected on the basis of visual observation or surname
+3. Not applicable"
+race_co_applicant_collected,"Descriptions:
+1.Collected on the basis of visual observation or surname
+2. Not collected on the basis of visual observation or surname
+3. Not applicable
+4. No co-applicant"
+sex_applicant,"Descriptions:
+1. Male
+2. Female
+3. Information not provided by applicant in mail internet or telephone application
+4. Not applicable
+6. Applicant selected both male and female"
+sex_co_applicant,"Descriptions:
+1. Male
+2. Female
+3. Information not provided by applicant in mail internet or telephone application
+4. Not applicable
+5. No co-applicant
+6. Co-applicant selected both male and female"
+sex_applicant_collected,"Descriptions:
+1. Collected on the basis of visual observation or surname
+2. Not collected on the basis of visual observation or surname
+3. Not applicable"
+sex_co_applicant_collected,"Descriptions:
+1. Collected on the basis of visual observation or surname
+2. Not collected on the basis of visual observation or surname
+3. Not applicable
+4. No co-applicant"
+age_applicant,Bin the age reported into one of the ranged provided. Report 8888 if Age is NA.
+age_applicant_62,Enter Yes in the new field if the age of applicant is >= 62. Enter No if the age is <= 62. Enter NA if the Age of Applicant or Borrower is 8888
+age_co_applicant,Bin the age reported into one of the ranged provided. Report 8888 if Age is NA or 9999 if No-Co-Applicant
+age_co_applicant_62,Enter Yes in the new field if the age of the co-applicant is >= 62. Enter No if the age is <=62. Enter NA if Age of Co-Applicant or Co-Borrower is 8888 or 9999
+income,
+rate_spread,
+hoepa_status,"Descriptions:
+1. High-cost mortgage
+2. Not a high-cost mortgage
+3. Not applicable"
+lien_status,"Descriptions:
+1. Secured by a first lien
+2. Secured by a subordinate lien"
+applicant_credit_scoring_model,"Descriptions:
+1. Equifax Beacon 5.0
+2. Experian Fair Isaac
+3. FICO Risk Score Classic 04
+4. FICO Risk Score Classic 98
+5. VantageScore 2.0
+6. VantageScore 3.0
+7. More than one credit scoring model
+8. Other credit scoring model
+9. Not applicable"
+co_applicant_credit_scoring_model,10. No co-applicant
+total_loan_costs,
+total_points_and_fees,
+origination_charges,
+discount_points,
+lender_credits,
+interest_rate,
+prepayment_penalty_term,
+combined_loan_to_value_ratio,
+loan_term,
+introductory_rate_period,
+balloon_payment,"Descriptions:
+1. Balloon payment
+2. No balloon payment"
+interest_only_payments,"Descriptions:
+1. Interest-only payments
+2. No interest-only payments"
+negative_amortization,"Descriptions:
+1. Negative amortization
+2. No negative amortization"
+other_non_amortizing_features,"Descriptions:
+1. Other non-fully amortizing features
+2. No other non-fully amortizing features"
+property_value,
+manufactured_home_secured_property_type,"Descriptions:
+1. Manufactured home and land
+2. Manufactured home and not land
+3. Not applicable"
+manufactured_home_land_property_interest,"Descriptions:
+1. Direct ownership
+2. Indirect ownership
+3. Paid leasehold
+4. Unpaid leasehold
+5. Not applicable"
+total_units,
+multifamily_affordable_units,
+submission_of_application,"Descriptions:
+1. Submitted directly to your institution
+2. Not submitted directly to your institution
+3. Not applicable"
+initially_payable_to_your_institution,"Descriptions:
+1. Initially payable to your institution
+2. Not initially payable to your institution
+3. Not applicable"
+automated_underwriting_system_1,"Descriptions:
+1. Desktop Underwriter (DU)
+2. Loan Prospector (LP)
+3. Technology Open to Approved Lenders (TOTAL) Scorecard
+4. Guaranteed Underwriting System (GUS)
+5. Other
+6. Not applicable"
+automated_underwriting_system_2,
+automated_underwriting_system_3,
+automated_underwriting_system_4,
+automated_underwriting_system_5,
+reverse_mortgage,"Descriptions:
+1. Reverse mortgage
+2. Not a reverse mortgage"
+open_end_line_of_credit,"Descriptions:
+1. Open-end line of credit
+2. Not an open-end line of credit"
+business_or_commercial_purpose,"Descriptions:
+1. Primarily for a business or commercial purpose
+2. Not primarily for a business or commercial purpose"
